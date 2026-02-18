@@ -213,7 +213,8 @@
         const { createFFmpeg, fetchFile } = FFmpeg;
 
         const ffmpeg = createFFmpeg({
-          corePath: 'https://unpkg.com/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js',
+          // Core multi-threaded padrão — funciona com os headers COOP/COEP da Vercel
+          corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
           log: false,
           logger: ({ type, message }) => { if (type === 'fferr') log(message); },
           progress: ({ ratio }) => {
@@ -249,7 +250,6 @@
         if (resultURL) URL.revokeObjectURL(resultURL);
         resultURL = URL.createObjectURL(blob);
 
-        // cleanup
         [...filenames, 'list.txt', 'out.mp4'].forEach(f => { try { ffmpeg.FS('unlink', f); } catch(e) {} });
 
         setProgress(100, 'Pronto! ✅');
