@@ -6,50 +6,18 @@
   <title>🎬 Video Merger</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0f0f13;
-      color: #e8e8f0;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 40px 20px;
-    }
-    h1 {
-      font-size: 2rem;
-      font-weight: 700;
-      margin-bottom: 6px;
-      background: linear-gradient(135deg, #a78bfa, #60a5fa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 36px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f13; color: #e8e8f0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 40px 20px; }
+    h1 { font-size: 2rem; font-weight: 700; margin-bottom: 6px; background: linear-gradient(135deg, #a78bfa, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 12px; }
     .container { width: 100%; max-width: 700px; }
-
-    #dropzone {
-      border: 2px dashed #3a3a5c;
-      border-radius: 16px;
-      padding: 48px 20px;
-      text-align: center;
-      cursor: pointer;
-      transition: all 0.2s;
-      background: #16161f;
-      margin-bottom: 24px;
-    }
+    #dropzone { border: 2px dashed #3a3a5c; border-radius: 16px; padding: 48px 20px; text-align: center; cursor: pointer; transition: all 0.2s; background: #16161f; margin-bottom: 24px; }
     #dropzone:hover, #dropzone.drag-over { border-color: #a78bfa; background: #1e1e2e; }
     #dropzone .icon { font-size: 2.5rem; margin-bottom: 12px; }
     #dropzone p { color: #888; font-size: 0.95rem; }
     #dropzone strong { color: #c4b5fd; }
     #fileInput { display: none; }
-
     #videoList { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
-    .video-item {
-      display: flex; align-items: center; gap: 12px;
-      background: #16161f; border: 1px solid #2a2a40;
-      border-radius: 12px; padding: 12px 16px;
-      cursor: grab; transition: all 0.15s; user-select: none;
-    }
+    .video-item { display: flex; align-items: center; gap: 12px; background: #16161f; border: 1px solid #2a2a40; border-radius: 12px; padding: 12px 16px; cursor: grab; transition: all 0.15s; user-select: none; }
     .video-item:active { cursor: grabbing; }
     .video-item.dragging { opacity: 0.4; border-color: #a78bfa; }
     .video-item.drag-target { border-color: #60a5fa; background: #1a1a2e; }
@@ -61,7 +29,6 @@
     .order-badge { background: #2a2a40; color: #a78bfa; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; flex-shrink: 0; }
     .remove-btn { background: none; border: none; color: #555; cursor: pointer; font-size: 1rem; padding: 4px; border-radius: 6px; transition: color 0.15s; flex-shrink: 0; }
     .remove-btn:hover { color: #f87171; }
-
     .controls { display: flex; gap: 12px; margin-bottom: 24px; }
     .btn { flex: 1; padding: 14px 20px; border-radius: 10px; font-size: 0.95rem; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; }
     .btn-primary { background: linear-gradient(135deg, #7c3aed, #3b82f6); color: white; }
@@ -69,28 +36,79 @@
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     .btn-secondary { background: #1e1e2e; color: #888; border: 1px solid #2a2a40; }
     .btn-secondary:hover { background: #252535; color: #ccc; }
-
     #progressSection { display: none; background: #16161f; border: 1px solid #2a2a40; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
     .progress-label { font-size: 0.85rem; color: #888; margin-bottom: 10px; display: flex; justify-content: space-between; }
     .progress-bar { height: 6px; background: #2a2a40; border-radius: 10px; overflow: hidden; }
     .progress-fill { height: 100%; background: linear-gradient(90deg, #7c3aed, #3b82f6); border-radius: 10px; transition: width 0.3s; width: 0%; }
     .log-output { margin-top: 14px; font-size: 0.78rem; color: #555; font-family: monospace; max-height: 80px; overflow-y: auto; }
-
     #resultSection { display: none; background: #0f1f1a; border: 1px solid #134e4a; border-radius: 12px; padding: 20px; text-align: center; }
     #resultSection h3 { color: #34d399; margin-bottom: 6px; }
     #resultSection p { color: #6b8c85; font-size: 0.85rem; margin-bottom: 16px; }
     .btn-download { background: linear-gradient(135deg, #065f46, #0891b2); color: white; padding: 12px 32px; border-radius: 10px; font-size: 0.95rem; font-weight: 600; border: none; cursor: pointer; text-decoration: none; display: inline-block; transition: all 0.2s; }
-    .btn-download:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(6,95,70,0.4); }
-
+    .btn-download:hover { transform: translateY(-1px); }
     .hint { font-size: 0.8rem; color: #555; text-align: center; margin-top: 16px; }
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #3a3a5c; border-radius: 4px; }
+    .badge { display: inline-block; font-size: 0.75rem; padding: 4px 12px; border-radius: 20px; margin-bottom: 20px; }
+    .badge-ok { background: #1a2e1a; color: #4ade80; border: 1px solid #166534; }
+    .badge-warn { background: #2a1a0a; color: #fb923c; border: 1px solid #7c3a00; }
+    ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #3a3a5c; border-radius: 4px; }
   </style>
 </head>
 <body>
+
+<script>
+// COI Service Worker — injeta COOP/COEP headers no browser sem precisar do servidor
+(function() {
+  if (window.crossOriginIsolated) return; // já isolado, nada a fazer
+  if (!('serviceWorker' in navigator)) return;
+
+  const SW = `
+    const VERSION = 'coi-v1';
+    self.addEventListener('install', () => self.skipWaiting());
+    self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+    self.addEventListener('fetch', event => {
+      if (event.request.cache === 'only-if-cached' && event.request.mode !== 'same-origin') return;
+      event.respondWith(
+        fetch(event.request, {credentials:'include'}).then(res => {
+          if (!res || res.status === 0 || res.type === 'opaque') return res;
+          const h = new Headers(res.headers);
+          h.set('Cross-Origin-Opener-Policy','same-origin');
+          h.set('Cross-Origin-Embedder-Policy','require-corp');
+          h.set('Cross-Origin-Resource-Policy','cross-origin');
+          return new Response(res.body, {status:res.status, statusText:res.statusText, headers:h});
+        }).catch(() => fetch(event.request))
+      );
+    });
+  `;
+
+  const blob = new Blob([SW], {type:'text/javascript'});
+  const url = URL.createObjectURL(blob);
+
+  navigator.serviceWorker.register(url, {scope: './'}).then(reg => {
+    const worker = reg.installing || reg.waiting || reg.active;
+    if (reg.active && !reg.installing && !reg.waiting) {
+      // SW já ativo — recarrega se ainda não isolado
+      if (!sessionStorage.getItem('coi-reload')) {
+        sessionStorage.setItem('coi-reload','1');
+        window.location.reload();
+      }
+      return;
+    }
+    worker.addEventListener('statechange', function() {
+      if (this.state === 'activated') {
+        if (!sessionStorage.getItem('coi-reload')) {
+          sessionStorage.setItem('coi-reload','1');
+          window.location.reload();
+        }
+      }
+    });
+  }).catch(e => console.warn('[COI-SW]', e));
+})();
+</script>
+
   <h1>🎬 Video Merger</h1>
   <p class="subtitle">Junte vídeos MP4 na ordem que quiser — rápido, sem upload, sem software</p>
+
+  <div id="statusBadge"></div>
 
   <div class="container">
     <div id="dropzone" onclick="document.getElementById('fileInput').click()">
@@ -99,14 +117,11 @@
       <p style="margin-top:6px;font-size:0.8rem;">Suporta múltiplos arquivos</p>
     </div>
     <input type="file" id="fileInput" accept="video/*" multiple />
-
     <div id="videoList"></div>
-
     <div class="controls" id="controls" style="display:none;">
       <button class="btn btn-secondary" onclick="clearAll()">🗑 Limpar</button>
       <button class="btn btn-primary" id="mergeBtn" onclick="startMerge()">✨ Juntar Vídeos</button>
     </div>
-
     <div id="progressSection">
       <div class="progress-label">
         <span id="progressStatus">Processando...</span>
@@ -115,23 +130,25 @@
       <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
       <div class="log-output" id="logOutput"></div>
     </div>
-
     <div id="resultSection">
       <h3>✅ Pronto!</h3>
       <p id="resultInfo">Vídeo gerado com sucesso.</p>
       <a id="downloadLink" class="btn-download" download="video-final.mp4">⬇ Baixar Vídeo Final</a>
     </div>
-
     <p class="hint">💡 Arraste os itens para reordenar antes de juntar</p>
   </div>
 
   <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
-
   <script>
-    let videoFiles = [];
-    let dragSrcIndex = null;
-    let resultURL = null;
+    // Status badge
+    const badge = document.getElementById('statusBadge');
+    if (window.crossOriginIsolated) {
+      badge.innerHTML = '<span class="badge badge-ok">🔒 Modo seguro ativo — pronto para processar</span>';
+    } else {
+      badge.innerHTML = '<span class="badge badge-warn">⏳ Ativando modo seguro... recarregue se travar</span>';
+    }
 
+    let videoFiles = [], dragSrcIndex = null, resultURL = null;
     const dropzone = document.getElementById('dropzone');
     const fileInput = document.getElementById('fileInput');
 
@@ -141,159 +158,134 @@
     fileInput.addEventListener('change', e => addFiles([...e.target.files]));
 
     function addFiles(files) {
-      files.forEach(f => {
-        if (f.type.startsWith('video/') || f.name.match(/\.(mp4|mov|avi|webm|mkv)$/i)) videoFiles.push(f);
-      });
+      files.filter(f => f.type.startsWith('video/') || f.name.match(/\.(mp4|mov|avi|webm|mkv)$/i)).forEach(f => videoFiles.push(f));
       renderList();
     }
-
     function renderList() {
-      const list = document.getElementById('videoList');
       document.getElementById('controls').style.display = videoFiles.length > 0 ? 'flex' : 'none';
-      list.innerHTML = videoFiles.map((f, i) => `
-        <div class="video-item" draggable="true"
-             ondragstart="dragStart(event,${i})" ondragover="dragOver(event,${i})"
-             ondrop="dragDrop(event,${i})" ondragend="dragEnd()" id="item-${i}">
-          <span class="drag-handle">☰</span>
-          <span class="video-thumb">🎥</span>
+      document.getElementById('videoList').innerHTML = videoFiles.map((f,i) => `
+        <div class="video-item" draggable="true" ondragstart="dragStart(event,${i})" ondragover="dragOver(event,${i})" ondrop="dragDrop(event,${i})" ondragend="dragEnd()" id="item-${i}">
+          <span class="drag-handle">☰</span><span class="video-thumb">🎥</span>
           <div class="video-info">
             <div class="video-name">${escHtml(f.name)}</div>
             <div class="video-size">${formatSize(f.size)}</div>
           </div>
-          <span class="order-badge">#${i + 1}</span>
+          <span class="order-badge">#${i+1}</span>
           <button class="remove-btn" onclick="removeVideo(${i})">✕</button>
-        </div>
-      `).join('');
+        </div>`).join('');
     }
-
     function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-    function formatSize(b) { return b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB'; }
-    function removeVideo(i) { videoFiles.splice(i, 1); renderList(); }
-
+    function formatSize(b) { return b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB'; }
+    function removeVideo(i) { videoFiles.splice(i,1); renderList(); }
     function clearAll() {
       videoFiles = [];
-      if (resultURL) URL.revokeObjectURL(resultURL);
-      resultURL = null;
+      if (resultURL) URL.revokeObjectURL(resultURL); resultURL = null;
       document.getElementById('resultSection').style.display = 'none';
       document.getElementById('progressSection').style.display = 'none';
-      renderList();
-      fileInput.value = '';
+      renderList(); fileInput.value = '';
     }
-
-    function dragStart(e, i) { dragSrcIndex = i; document.getElementById(`item-${i}`).classList.add('dragging'); }
-    function dragOver(e, i) {
-      e.preventDefault();
-      document.querySelectorAll('.video-item').forEach(el => el.classList.remove('drag-target'));
-      document.getElementById(`item-${i}`)?.classList.add('drag-target');
-    }
-    function dragDrop(e, i) {
-      e.preventDefault();
-      if (dragSrcIndex === null || dragSrcIndex === i) return;
-      const moved = videoFiles.splice(dragSrcIndex, 1)[0];
-      videoFiles.splice(i, 0, moved);
-      renderList();
-    }
-    function dragEnd() {
-      dragSrcIndex = null;
-      document.querySelectorAll('.video-item').forEach(el => el.classList.remove('dragging', 'drag-target'));
-    }
+    function dragStart(e,i) { dragSrcIndex=i; document.getElementById(`item-${i}`).classList.add('dragging'); }
+    function dragOver(e,i) { e.preventDefault(); document.querySelectorAll('.video-item').forEach(el=>el.classList.remove('drag-target')); document.getElementById(`item-${i}`)?.classList.add('drag-target'); }
+    function dragDrop(e,i) { e.preventDefault(); if(dragSrcIndex===null||dragSrcIndex===i) return; const m=videoFiles.splice(dragSrcIndex,1)[0]; videoFiles.splice(i,0,m); renderList(); }
+    function dragEnd() { dragSrcIndex=null; document.querySelectorAll('.video-item').forEach(el=>el.classList.remove('dragging','drag-target')); }
 
     async function startMerge() {
-      if (videoFiles.length < 2) { alert('Adicione pelo menos 2 vídeos para juntar.'); return; }
+      if (videoFiles.length < 2) { alert('Adicione pelo menos 2 vídeos.'); return; }
+      if (!window.crossOriginIsolated) {
+        alert('O modo seguro ainda está sendo ativado. Recarregue a página e tente novamente.');
+        return;
+      }
 
       const mergeBtn = document.getElementById('mergeBtn');
       mergeBtn.disabled = true;
       document.getElementById('progressSection').style.display = 'block';
       document.getElementById('resultSection').style.display = 'none';
-
       setProgress(0, 'Carregando FFmpeg...');
       log('Inicializando...');
 
       try {
         const { createFFmpeg, fetchFile } = FFmpeg;
-
         const ffmpeg = createFFmpeg({
           corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
           log: false,
-          logger: ({ type, message }) => { if (type === 'fferr') log(message); },
-          progress: ({ ratio }) => {
-            if (ratio > 0) setProgress(Math.min(95, Math.round(40 + ratio * 55)), `Processando... ${Math.round(ratio * 100)}%`);
-          }
+          logger: ({type,message}) => { if(type==='fferr') log(message); },
+          progress: ({ratio}) => { if(ratio>0) setProgress(Math.min(95,Math.round(35+ratio*60)),`Processando... ${Math.round(ratio*100)}%`); }
         });
 
         await ffmpeg.load();
         log('FFmpeg pronto!');
-        setProgress(10, 'Carregando vídeos...');
+        setProgress(8,'Carregando vídeos...');
 
-        const filenames = [];
-        for (let i = 0; i < videoFiles.length; i++) {
-          const fname = `v${i}.mp4`;
-          filenames.push(fname);
+        const rawNames = [];
+        for (let i=0;i<videoFiles.length;i++) {
+          const fname=`raw${i}.mp4`;
+          rawNames.push(fname);
           ffmpeg.FS('writeFile', fname, await fetchFile(videoFiles[i]));
-          setProgress(10 + Math.round((i + 1) / videoFiles.length * 25), `Carregando ${i + 1}/${videoFiles.length}...`);
+          setProgress(8+Math.round((i+1)/videoFiles.length*20),`Carregando ${i+1}/${videoFiles.length}...`);
           log(`✓ ${videoFiles[i].name}`);
         }
 
-        // Monta o filter_complex para concat com re-encode correto
-        // Isso garante sincronização perfeita independente dos timestamps originais
-        const n = filenames.length;
-        const inputs = filenames.flatMap(f => ['-i', f]);
+        setProgress(30,'Normalizando vídeos...');
+        const normNames = [];
+        for (let i=0;i<rawNames.length;i++) {
+          const normName=`norm${i}.mp4`;
+          normNames.push(normName);
+          log(`Normalizando ${i+1}/${rawNames.length}...`);
+          await ffmpeg.run(
+            '-i', rawNames[i],
+            '-f','lavfi','-t','0.001','-i','anullsrc=channel_layout=stereo:sample_rate=44100',
+            '-filter_complex',
+              `[0:v]setsar=1,fps=30[v];[0:a]aresample=44100[hasa];[1:a][hasa]amix=inputs=2:duration=first[a]`,
+            '-map','[v]','-map','[a]',
+            '-c:v','libx264','-preset','veryfast','-crf','23',
+            '-c:a','aac','-b:a','128k','-shortest',normName
+          );
+          setProgress(30+Math.round((i+1)/rawNames.length*5),`Normalizado ${i+1}/${rawNames.length}`);
+          log(`✓ ${videoFiles[i].name}`);
+        }
 
-        const filterInputs = filenames.map((_, i) => `[${i}:v][${i}:a]`).join('');
-        const filterComplex = `${filterInputs}concat=n=${n}:v=1:a=1[vout][aout]`;
-
-        setProgress(38, 'Juntando e re-encodando...');
-        log(`Concatenando ${n} vídeos com re-encode...`);
-
+        setProgress(36,'Juntando vídeos...');
+        log('Concatenando...');
+        const inputs = normNames.flatMap(f=>['-i',f]);
+        const filterParts = normNames.map((_,i)=>`[${i}:v][${i}:a]`).join('');
         await ffmpeg.run(
           ...inputs,
-          '-filter_complex', filterComplex,
-          '-map', '[vout]',
-          '-map', '[aout]',
-          '-c:v', 'libx264',
-          '-preset', 'veryfast',
-          '-crf', '23',
-          '-c:a', 'aac',
-          '-b:a', '128k',
-          '-movflags', '+faststart',
-          'out.mp4'
+          '-filter_complex', `${filterParts}concat=n=${normNames.length}:v=1:a=1[vout][aout]`,
+          '-map','[vout]','-map','[aout]',
+          '-c:v','libx264','-preset','veryfast','-crf','23',
+          '-c:a','aac','-b:a','128k','-movflags','+faststart','out.mp4'
         );
 
-        setProgress(97, 'Finalizando...');
-        const data = ffmpeg.FS('readFile', 'out.mp4');
-        const blob = new Blob([data.buffer], { type: 'video/mp4' });
-
+        setProgress(97,'Finalizando...');
+        const data = ffmpeg.FS('readFile','out.mp4');
+        const blob = new Blob([data.buffer],{type:'video/mp4'});
         if (resultURL) URL.revokeObjectURL(resultURL);
         resultURL = URL.createObjectURL(blob);
+        [...rawNames,...normNames,'out.mp4'].forEach(f=>{try{ffmpeg.FS('unlink',f);}catch(e){}});
 
-        [...filenames, 'out.mp4'].forEach(f => { try { ffmpeg.FS('unlink', f); } catch(e) {} });
-
-        setProgress(100, 'Pronto! ✅');
+        setProgress(100,'Pronto! ✅');
         document.getElementById('downloadLink').href = resultURL;
-        document.getElementById('resultInfo').textContent =
-          `${videoFiles.length} vídeos juntados • ${(blob.size / 1048576).toFixed(1)} MB`;
+        document.getElementById('resultInfo').textContent = `${videoFiles.length} vídeos juntados • ${(blob.size/1048576).toFixed(1)} MB`;
         document.getElementById('resultSection').style.display = 'block';
         log('Concluído!');
-
-      } catch (err) {
+      } catch(err) {
         console.error(err);
-        log('ERRO: ' + err.message);
-        alert('Erro: ' + err.message);
+        log('ERRO: '+err.message);
+        alert('Erro: '+err.message);
       } finally {
         mergeBtn.disabled = false;
       }
     }
 
-    function setProgress(pct, status) {
-      document.getElementById('progressFill').style.width = pct + '%';
-      document.getElementById('progressPercent').textContent = pct + '%';
-      document.getElementById('progressStatus').textContent = status;
+    function setProgress(pct,status) {
+      document.getElementById('progressFill').style.width=pct+'%';
+      document.getElementById('progressPercent').textContent=pct+'%';
+      document.getElementById('progressStatus').textContent=status;
     }
-
     function log(msg) {
-      const out = document.getElementById('logOutput');
-      out.textContent += msg + '\n';
-      out.scrollTop = out.scrollHeight;
+      const out=document.getElementById('logOutput');
+      out.textContent+=msg+'\n';
+      out.scrollTop=out.scrollHeight;
     }
   </script>
 </body>
