@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎬 Video Merger</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f13;
+      color: #e8e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, #a78bfa, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      color: #888;
+      font-size: 0.9rem;
+      margin-bottom: 36px;
+    }
+
+    .container { width: 100%; max-width: 700px; }
+
+    /* Drop Zone */
+    #dropzone {
+      border: 2px dashed #3a3a5c;
+      border-radius: 16px;
+      padding: 48px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #16161f;
+      margin-bottom: 24px;
+    }
+
+    #dropzone:hover, #dropzone.drag-over {
+      border-color: #a78bfa;
+      background: #1e1e2e;
+    }
+
+    #dropzone .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    #dropzone p { color: #888; font-size: 0.95rem; }
+    #dropzone strong { color: #c4b5fd; }
+
+    #fileInput { display: none; }
+
+    /* Video List */
+    #videoList {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .video-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #16161f;
+      border: 1px solid #2a2a40;
+      border-radius: 12px;
+      padding: 12px 16px;
+      cursor: grab;
+      transition: all 0.15s;
+      user-select: none;
+    }
+
+    .video-item:active { cursor: grabbing; }
+    .video-item.dragging { opacity: 0.4; border-color: #a78bfa; }
+    .video-item.drag-target { border-color: #60a5fa; background: #1a1a2e; }
+
+    .drag-handle { font-size: 1.1rem; color: #555; flex-shrink: 0; }
+    .video-thumb { font-size: 1.5rem; flex-shrink: 0; }
+
+    .video-info { flex: 1; min-width: 0; }
+    .video-name {
+      font-size: 0.9rem;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .video-size { font-size: 0.75rem; color: #666; margin-top: 2px; }
+
+    .order-badge {
+      background: #2a2a40;
+      color: #a78bfa;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      flex-shrink: 0;
+    }
+
+    .remove-btn {
+      background: none;
+      border: none;
+      color: #555;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 4px;
+      border-radius: 6px;
+      transition: color 0.15s;
+      flex-shrink: 0;
+    }
+    .remove-btn:hover { color: #f87171; }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 14px 20px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #7c3aed, #3b82f6);
+      color: white;
+    }
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(124, 58, 237, 0.35);
+    }
+    .btn-primary:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-secondary {
+      background: #1e1e2e;
+      color: #888;
+      border: 1px solid #2a2a40;
+    }
+    .btn-secondary:hover { background: #252535; color: #ccc; }
+
+    /* Progress */
+    #progressSection {
+      display: none;
+      background: #16161f;
+      border: 1px solid #2a2a40;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .progress-label {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .progress-bar {
+      height: 6px;
+      background: #2a2a40;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #7c3aed, #3b82f6);
+      border-radius: 10px;
+      transition: width 0.3s;
+      width: 0%;
+    }
+
+    .log-output {
+      margin-top: 14px;
+      font-size: 0.78rem;
+      color: #555;
+      font-family: monospace;
+      max-height: 80px;
+      overflow-y: auto;
+    }
+
+    /* Result */
+    #resultSection {
+      display: none;
+      background: #0f1f1a;
+      border: 1px solid #134e4a;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    #resultSection h3 { color: #34d399; margin-bottom: 6px; }
+    #resultSection p { color: #6b8c85; font-size: 0.85rem; margin-bottom: 16px; }
+
+    .btn-download {
+      background: linear-gradient(135deg, #065f46, #0891b2);
+      color: white;
+      padding: 12px 32px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      transition: all 0.2s;
+    }
+    .btn-download:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(6, 95, 70, 0.4);
+    }
+
+    .hint {
+      font-size: 0.8rem;
+      color: #555;
+      text-align: center;
+      margin-top: 16px;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #3a3a5c; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+  <h1>🎬 Video Merger</h1>
+  <p class="subtitle">Junte vídeos MP4 na ordem que quiser — tudo no navegador, sem upload</p>
+
+  <div class="container">
+
+    <div id="dropzone" onclick="document.getElementById('fileInput').click()">
+      <div class="icon">📁</div>
+      <p><strong>Clique aqui</strong> ou arraste os vídeos MP4</p>
+      <p style="margin-top:6px; font-size:0.8rem;">Suporta múltiplos arquivos</p>
+    </div>
+    <input type="file" id="fileInput" accept="video/mp4,video/*" multiple />
+
+    <div id="videoList"></div>
+
+    <div class="controls" id="controls" style="display:none;">
+      <button class="btn btn-secondary" onclick="clearAll()">🗑 Limpar</button>
+      <button class="btn btn-primary" id="mergeBtn" onclick="startMerge()">✨ Juntar Vídeos</button>
+    </div>
+
+    <div id="progressSection">
+      <div class="progress-label">
+        <span id="progressStatus">Processando...</span>
+        <span id="progressPercent">0%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="log-output" id="logOutput"></div>
+    </div>
+
+    <div id="resultSection">
+      <h3>✅ Pronto!</h3>
+      <p id="resultInfo">Vídeo gerado com sucesso.</p>
+      <a id="downloadLink" class="btn-download" download="video-final.mp4">⬇ Baixar Vídeo Final</a>
+    </div>
+
+    <p class="hint">💡 Arraste os itens para reordenar antes de juntar</p>
+  </div>
+
+  <!-- FFmpeg.wasm via CDN -->
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.js"></script>
+  <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+
+  <script>
+    let videoFiles = [];
+    let dragSrcIndex = null;
+    let ffmpegInstance = null;
+    let resultURL = null;
+
+    // Drop zone events
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropzone.classList.remove('drag-over');
+      addFiles([...e.dataTransfer.files]);
+    });
+    fileInput.addEventListener('change', e => addFiles([...e.target.files]));
+
+    function addFiles(files) {
+      const videoMimes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm', 'video/mpeg'];
+      files.forEach(f => {
+        if (f.type.startsWith('video/') || f.name.match(/\.(mp4|mov|avi|webm|mkv)$/i)) {
+          videoFiles.push(f);
+        }
+      });
+      renderList();
+    }
+
+    function renderList() {
+      const list = document.getElementById('videoList');
+      const controls = document.getElementById('controls');
+      controls.style.display = videoFiles.length > 0 ? 'flex' : 'none';
+
+      list.innerHTML = videoFiles.map((f, i) => `
+        <div class="video-item" draggable="true"
+             ondragstart="dragStart(event,${i})"
+             ondragover="dragOver(event,${i})"
+             ondrop="dragDrop(event,${i})"
+             ondragend="dragEnd()"
+             id="item-${i}">
+          <span class="drag-handle">☰</span>
+          <span class="video-thumb">🎥</span>
+          <div class="video-info">
+            <div class="video-name">${f.name}</div>
+            <div class="video-size">${formatSize(f.size)}</div>
+          </div>
+          <span class="order-badge">#${i + 1}</span>
+          <button class="remove-btn" onclick="removeVideo(${i})">✕</button>
+        </div>
+      `).join('');
+    }
+
+    function formatSize(bytes) {
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function removeVideo(index) {
+      videoFiles.splice(index, 1);
+      renderList();
+    }
+
+    function clearAll() {
+      videoFiles = [];
+      if (resultURL) URL.revokeObjectURL(resultURL);
+      resultURL = null;
+      document.getElementById('resultSection').style.display = 'none';
+      document.getElementById('progressSection').style.display = 'none';
+      renderList();
+      fileInput.value = '';
+    }
+
+    // Drag to reorder
+    function dragStart(e, i) { dragSrcIndex = i; e.target.classList.add('dragging'); }
+    function dragOver(e, i) {
+      e.preventDefault();
+      document.querySelectorAll('.video-item').forEach(el => el.classList.remove('drag-target'));
+      document.getElementById(`item-${i}`)?.classList.add('drag-target');
+    }
+    function dragDrop(e, i) {
+      e.preventDefault();
+      if (dragSrcIndex === null || dragSrcIndex === i) return;
+      const moved = videoFiles.splice(dragSrcIndex, 1)[0];
+      videoFiles.splice(i, 0, moved);
+      renderList();
+    }
+    function dragEnd() {
+      dragSrcIndex = null;
+      document.querySelectorAll('.video-item').forEach(el => {
+        el.classList.remove('dragging', 'drag-target');
+      });
+    }
+
+    // Merge using FFmpeg.wasm
+    async function startMerge() {
+      if (videoFiles.length < 2) {
+        alert('Adicione pelo menos 2 vídeos para juntar.');
+        return;
+      }
+
+      const mergeBtn = document.getElementById('mergeBtn');
+      mergeBtn.disabled = true;
+
+      const progressSection = document.getElementById('progressSection');
+      const resultSection = document.getElementById('resultSection');
+      progressSection.style.display = 'block';
+      resultSection.style.display = 'none';
+
+      setProgress(0, 'Carregando FFmpeg...');
+      log('Inicializando FFmpeg...');
+
+      try {
+        // Load FFmpeg
+        if (!ffmpegInstance) {
+          const { FFmpeg } = FFmpegWasm;
+          ffmpegInstance = new FFmpeg();
+
+          ffmpegInstance.on('log', ({ message }) => {
+            log(message);
+          });
+
+          ffmpegInstance.on('progress', ({ progress }) => {
+            const pct = Math.round(progress * 100);
+            setProgress(pct, `Processando... ${pct}%`);
+          });
+
+          await ffmpegInstance.load({
+            coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
+          });
+        }
+
+        log('FFmpeg carregado!');
+        setProgress(10, 'Carregando vídeos...');
+
+        const { fetchFile } = FFmpegUtil;
+
+        // Write files to FFmpeg FS
+        const filenames = [];
+        for (let i = 0; i < videoFiles.length; i++) {
+          const fname = `input_${i}.mp4`;
+          filenames.push(fname);
+          const data = await fetchFile(videoFiles[i]);
+          await ffmpegInstance.writeFile(fname, data);
+          const pct = 10 + Math.round((i + 1) / videoFiles.length * 30);
+          setProgress(pct, `Carregando vídeos (${i + 1}/${videoFiles.length})...`);
+          log(`Carregado: ${videoFiles[i].name}`);
+        }
+
+        // Create concat list
+        const concatList = filenames.map(f => `file '${f}'`).join('\n');
+        const encoder = new TextEncoder();
+        await ffmpegInstance.writeFile('concat.txt', encoder.encode(concatList));
+
+        setProgress(45, 'Juntando vídeos...');
+        log('Iniciando concatenação...');
+
+        // Run FFmpeg concat
+        await ffmpegInstance.exec([
+          '-f', 'concat',
+          '-safe', '0',
+          '-i', 'concat.txt',
+          '-c', 'copy',
+          'output.mp4'
+        ]);
+
+        setProgress(90, 'Finalizando...');
+        log('Concatenação concluída. Gerando arquivo...');
+
+        // Read output
+        const data = await ffmpegInstance.readFile('output.mp4');
+        const blob = new Blob([data.buffer], { type: 'video/mp4' });
+
+        if (resultURL) URL.revokeObjectURL(resultURL);
+        resultURL = URL.createObjectURL(blob);
+
+        // Cleanup
+        for (const fname of filenames) {
+          try { await ffmpegInstance.deleteFile(fname); } catch(e) {}
+        }
+        try { await ffmpegInstance.deleteFile('concat.txt'); } catch(e) {}
+        try { await ffmpegInstance.deleteFile('output.mp4'); } catch(e) {}
+
+        setProgress(100, 'Pronto!');
+
+        const dl = document.getElementById('downloadLink');
+        dl.href = resultURL;
+
+        const totalMB = (blob.size / (1024 * 1024)).toFixed(1);
+        document.getElementById('resultInfo').textContent =
+          `${videoFiles.length} vídeos juntados • ${totalMB} MB`;
+
+        resultSection.style.display = 'block';
+
+      } catch (err) {
+        console.error(err);
+        log('ERRO: ' + err.message);
+        alert('Erro ao processar: ' + err.message);
+      } finally {
+        mergeBtn.disabled = false;
+      }
+    }
+
+    function setProgress(pct, status) {
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressPercent').textContent = pct + '%';
+      document.getElementById('progressStatus').textContent = status;
+    }
+
+    function log(msg) {
+      const out = document.getElementById('logOutput');
+      out.textContent += msg + '\n';
+      out.scrollTop = out.scrollHeight;
+    }
+  </script>
+</body>
+</html>
