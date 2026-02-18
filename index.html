@@ -176,7 +176,6 @@
       <!-- Etapas visuais -->
       <div class="steps">
         <div class="step" id="step-load">Carregando</div>
-        <div class="step" id="step-norm">Normalizando</div>
         <div class="step" id="step-concat">Juntando</div>
         <div class="step" id="step-done">Pronto</div>
       </div>
@@ -366,11 +365,11 @@
         log('FFmpeg pronto!');
         doneStep('load');
 
-        // ── Etapa 2: Carregar arquivos (8→20%) ───────────────────────────────
-        setStep('norm');
+        // ── Etapa 2: Carregar arquivos (8→25%) ───────────────────────────────
+        setStep('load');
         jumpTo(8, 'Carregando vídeos...');
         const rawNames = [];
-        const perFile = 12 / videoFiles.length;
+        const perFile = 17 / videoFiles.length;
         for (let i = 0; i < videoFiles.length; i++) {
           crawl = slowCrawl(8 + i * perFile, 8 + (i + 1) * perFile, 2000);
           const fname = `raw${i}.mp4`;
@@ -380,75 +379,33 @@
           jumpTo(8 + (i + 1) * perFile, `Carregando ${i+1}/${videoFiles.length}...`);
           log(`✓ ${videoFiles[i].name}`);
         }
+        doneStep('load');
 
-        // ── Etapa 3: Normalizar (20→58%) ─────────────────────────────────────
-        // Versão simples: todos os vídeos têm áudio — 1 chamada por vídeo
-        const normNames = [];
-        const perNorm = 38 / rawNames.length;
-
-        for (let i = 0; i < rawNames.length; i++) {
-          const from = 20 + i * perNorm;
-          const to   = 20 + (i + 1) * perNorm;
-          crawl = slowCrawl(from, to, 30000);
-          renderProgress(`Normalizando ${i+1}/${rawNames.length}...`);
-          log(`Normalizando ${i+1}/${rawNames.length}...`);
-
-          const normName = `norm${i}.mp4`;
-          normNames.push(normName);
-
-          await ffmpeg.run(
-            '-i', rawNames[i],
-            '-vf', 'fps=30,setsar=1',
-            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-            '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-ac', '2',
-            normName
-          );
-
-          clearInterval(crawl);
-          jumpTo(to, `Normalizado ${i+1}/${rawNames.length}`);
-          log(`✓ ${videoFiles[i].name}`);
-        }
-        doneStep('norm');
-
-        // ── Etapa 4: Concatenar (60→94%) ─────────────────────────────────────
+        // ── Etapa 3: Juntar (25→94%) ─────────────────────────────────────────
+        // Normaliza fps/codec/áudio inline e concatena numa única chamada
         setStep('concat');
-        jumpTo(60, 'Juntando vídeos...');
-        log('Concatenando...');
+        jumpTo(25, 'Juntando vídeos...');
+        log(`Juntando ${rawNames.length} vídeos...`);
 
-        // Escreve list.txt como Uint8Array (necessário no FFmpeg.wasm)
-        const listTxt = normNames.map(f => `file '${f}'`).join('\n');
-        ffmpeg.FS('writeFile', 'list.txt', new TextEncoder().encode(listTxt));
+        const vf = rawNames.map((_, i) => `[${i}:v]fps=30,setsar=1[v${i}]`).join(';');
+        const af = rawNames.map((_, i) => `[${i}:a]aresample=44100[a${i}]`).join(';');
+        const ci = rawNames.map((_, i) => `[v${i}][a${i}]`).join('');
+        const fc = `${vf};${af};${ci}concat=n=${rawNames.length}:v=1:a=1[vout][aout]`;
 
         await ffmpeg.run(
-          '-f', 'concat', '-safe', '0', '-i', 'list.txt',
-          '-c', 'copy',
+          ...rawNames.flatMap(f => ['-i', f]),
+          '-filter_complex', fc,
+          '-map', '[vout]',
+          '-map', '[aout]',
+          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+          '-c:a', 'aac', '-b:a', '128k',
+          '-vsync', 'cfr',
           '-movflags', '+faststart',
           'out.mp4'
         );
-
-        // Verifica se out.mp4 foi criado
-        let fileExists = false;
-        try { ffmpeg.FS('stat', 'out.mp4'); fileExists = true; } catch(e) {}
-
-        if (!fileExists) {
-          // Fallback: filter_complex se o concat demuxer falhar
-          log('Tentando método alternativo...');
-          try { ffmpeg.FS('unlink', 'list.txt'); } catch(e) {}
-          const inputs2 = normNames.flatMap(f => ['-i', f]);
-          const filterParts = normNames.map((_,i) => `[${i}:v][${i}:a]`).join('');
-          await ffmpeg.run(
-            ...inputs2,
-            '-filter_complex', `${filterParts}concat=n=${normNames.length}:v=1:a=1[vout][aout]`,
-            '-map', '[vout]', '-map', '[aout]',
-            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-            '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', 'out.mp4'
-          );
-        }
-
-        try { ffmpeg.FS('unlink', 'list.txt'); } catch(e) {}
-
-        // ── Etapa 5: Finalizar (94→100%) ─────────────────────────────────────
         doneStep('concat');
+
+        // ── Etapa 4: Finalizar (94→100%) ─────────────────────────────────────
         setStep('done');
         crawl = slowCrawl(94, 100, 1500);
         renderProgress('Finalizando...');
@@ -457,7 +414,7 @@
         const blob = new Blob([data.buffer], {type: 'video/mp4'});
         if (resultURL) URL.revokeObjectURL(resultURL);
         resultURL = URL.createObjectURL(blob);
-        [...rawNames, ...normNames, 'out.mp4'].forEach(f => { try { ffmpeg.FS('unlink', f); } catch(e) {} });
+        [...rawNames, 'out.mp4'].forEach(f => { try { ffmpeg.FS('unlink', f); } catch(e) {} });
 
         clearInterval(crawl);
         stopDrift();
