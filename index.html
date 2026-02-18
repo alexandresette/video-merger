@@ -350,7 +350,11 @@
         const ffmpeg = createFFmpeg({
           corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
           log: false,
-          logger: ({type, message}) => { if (type === 'fferr') log(message); },
+          logger: ({type, message}) => {
+            if (type === 'fferr' && (message.includes('Error') || message.includes('error') || message.includes('Invalid') || message.includes('failed'))) {
+              log('⚠ ' + message);
+            }
+          },
           progress: ({ratio}) => {
             // Só chega aqui durante o concat final (etapa 3, 60→94%)
             if (ratio > 0) {
@@ -382,19 +386,49 @@
         doneStep('load');
 
         // ── Etapa 3: Juntar (25→94%) ─────────────────────────────────────────
-        // Normaliza fps/codec/áudio inline e concatena numa única chamada
+        // Passo 3a: normaliza cada vídeo individualmente (mais estável que inline)
         setStep('concat');
-        jumpTo(25, 'Juntando vídeos...');
-        log(`Juntando ${rawNames.length} vídeos...`);
+        jumpTo(25, 'Preparando vídeos...');
 
-        const vf = rawNames.map((_, i) => `[${i}:v]fps=30,setsar=1[v${i}]`).join(';');
-        const af = rawNames.map((_, i) => `[${i}:a]aresample=44100[a${i}]`).join(';');
-        const ci = rawNames.map((_, i) => `[v${i}][a${i}]`).join('');
-        const fc = `${vf};${af};${ci}concat=n=${rawNames.length}:v=1:a=1[vout][aout]`;
+        const normNames = [];
+        const perNorm = 50 / rawNames.length;
+        for (let i = 0; i < rawNames.length; i++) {
+          const from = 25 + i * perNorm;
+          const to   = 25 + (i + 1) * perNorm;
+          crawl = slowCrawl(from, to, 30000);
+          renderProgress(`Preparando ${i+1}/${rawNames.length}...`);
+          log(`Preparando ${i+1}/${rawNames.length}: ${videoFiles[i].name}`);
 
+          const normName = `norm${i}.mp4`;
+          normNames.push(normName);
+
+          await ffmpeg.run(
+            '-i', rawNames[i],
+            '-vf', 'fps=30,setsar=1',
+            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+            '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-ac', '2',
+            normName
+          );
+
+          // Verifica se o arquivo foi gerado
+          let ok = false;
+          try { ok = ffmpeg.FS('readFile', normName).length > 1000; } catch(e) {}
+          if (!ok) throw new Error(`Falha ao processar vídeo ${i+1} (${videoFiles[i].name})`);
+
+          clearInterval(crawl);
+          jumpTo(to);
+          log(`✓ ${videoFiles[i].name}`);
+        }
+
+        // Passo 3b: concatena os normalizados
+        jumpTo(75, 'Juntando...');
+        log('Concatenando...');
+        crawl = slowCrawl(75, 93, 20000);
+
+        const filterParts = normNames.map((_, i) => `[${i}:v][${i}:a]`).join('');
         await ffmpeg.run(
-          ...rawNames.flatMap(f => ['-i', f]),
-          '-filter_complex', fc,
+          ...normNames.flatMap(f => ['-i', f]),
+          '-filter_complex', `${filterParts}concat=n=${normNames.length}:v=1:a=1[vout][aout]`,
           '-map', '[vout]',
           '-map', '[aout]',
           '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
@@ -403,6 +437,14 @@
           '-movflags', '+faststart',
           'out.mp4'
         );
+
+        clearInterval(crawl);
+
+        // Verifica se out.mp4 foi gerado
+        let outOk = false;
+        try { outOk = ffmpeg.FS('readFile', 'out.mp4').length > 1000; } catch(e) {}
+        if (!outOk) throw new Error('Falha ao gerar o vídeo final. Verifique se os vídeos são MP4 válidos.');
+
         doneStep('concat');
 
         // ── Etapa 4: Finalizar (94→100%) ─────────────────────────────────────
@@ -414,7 +456,7 @@
         const blob = new Blob([data.buffer], {type: 'video/mp4'});
         if (resultURL) URL.revokeObjectURL(resultURL);
         resultURL = URL.createObjectURL(blob);
-        [...rawNames, 'out.mp4'].forEach(f => { try { ffmpeg.FS('unlink', f); } catch(e) {} });
+        [...rawNames, ...(typeof normNames !== 'undefined' ? normNames : []), 'out.mp4'].forEach(f => { try { ffmpeg.FS('unlink', f); } catch(e) {} });
 
         clearInterval(crawl);
         stopDrift();
