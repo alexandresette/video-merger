@@ -382,27 +382,64 @@
         }
 
         // ── Etapa 3: Normalizar (20→58%) ─────────────────────────────────────
+        // Abordagem robusta: 3 passos separados por vídeo
+        // 1) encode vídeo sem áudio  2) extrai/gera áudio  3) mux
         const normNames = [];
         const perNorm = 38 / rawNames.length;
+
         for (let i = 0; i < rawNames.length; i++) {
           const from = 20 + i * perNorm;
           const to   = 20 + (i + 1) * perNorm;
-          crawl = slowCrawl(from, to, 25000); // normalização pode levar ~25s por vídeo
+          crawl = slowCrawl(from, to, 30000);
           renderProgress(`Normalizando ${i+1}/${rawNames.length}...`);
           log(`Normalizando ${i+1}/${rawNames.length}...`);
 
+          const vOnly    = `nv${i}.mp4`;
+          const aOnly    = `na${i}.aac`;
           const normName = `norm${i}.mp4`;
           normNames.push(normName);
 
+          // Passo 1: normaliza vídeo (sem áudio)
           await ffmpeg.run(
             '-i', rawNames[i],
-            '-f', 'lavfi', '-t', '0.001', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
-            '-filter_complex',
-              `[0:v]setsar=1,fps=30[v];[0:a]aresample=44100[hasa];[1:a][hasa]amix=inputs=2:duration=first[a]`,
-            '-map', '[v]', '-map', '[a]',
+            '-vf', 'fps=30,setsar=1',
             '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-            '-c:a', 'aac', '-b:a', '128k', '-shortest', normName
+            '-an', vOnly
           );
+
+          // Passo 2: tenta extrair áudio; se não tiver, gera silêncio
+          let audioOk = false;
+          try {
+            await ffmpeg.run(
+              '-i', rawNames[i],
+              '-vn', '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-ac', '2',
+              aOnly
+            );
+            const info = ffmpeg.FS('stat', aOnly);
+            audioOk = info && info.size > 100;
+          } catch(e) { audioOk = false; }
+
+          if (!audioOk) {
+            try { ffmpeg.FS('unlink', aOnly); } catch(e) {}
+            await ffmpeg.run(
+              '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
+              '-t', '7200',
+              '-c:a', 'aac', '-b:a', '128k',
+              aOnly
+            );
+            log(`  sem audio — usando silencio`);
+          }
+
+          // Passo 3: mux vídeo + áudio, corta no final do vídeo
+          await ffmpeg.run(
+            '-i', vOnly, '-i', aOnly,
+            '-map', '0:v', '-map', '1:a',
+            '-c', 'copy', '-shortest',
+            normName
+          );
+
+          try { ffmpeg.FS('unlink', vOnly); } catch(e) {}
+          try { ffmpeg.FS('unlink', aOnly); } catch(e) {}
 
           clearInterval(crawl);
           jumpTo(to, `Normalizado ${i+1}/${rawNames.length}`);
