@@ -414,17 +414,21 @@
         setStep('concat');
         jumpTo(60, 'Juntando vídeos...');
         log('Concatenando...');
-        // O progress callback do FFmpeg vai cuidar do avanço aqui
 
-        const inputs = normNames.flatMap(f => ['-i', f]);
-        const filterParts = normNames.map((_,i) => `[${i}:v][${i}:a]`).join('');
+        // Concat demuxer com -c copy: funciona perfeitamente porque todos os
+        // vídeos normalizados têm o mesmo codec/fps/resolução/áudio.
+        // Mais rápido e mais estável que filter_complex.
+        const listTxt = normNames.map(f => `file '${f}'`).join('\n');
+        ffmpeg.FS('writeFile', 'list.txt', listTxt);
+
         await ffmpeg.run(
-          ...inputs,
-          '-filter_complex', `${filterParts}concat=n=${normNames.length}:v=1:a=1[vout][aout]`,
-          '-map', '[vout]', '-map', '[aout]',
-          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-          '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', 'out.mp4'
+          '-f', 'concat', '-safe', '0', '-i', 'list.txt',
+          '-c', 'copy',
+          '-movflags', '+faststart',
+          'out.mp4'
         );
+
+        try { ffmpeg.FS('unlink', 'list.txt'); } catch(e) {}
 
         // ── Etapa 5: Finalizar (94→100%) ─────────────────────────────────────
         doneStep('concat');
