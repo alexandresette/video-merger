@@ -400,7 +400,7 @@
             '-filter_complex',
               `[0:v]setsar=1,fps=30[v];[0:a]aresample=44100[hasa];[1:a][hasa]amix=inputs=2:duration=first[a]`,
             '-map', '[v]', '-map', '[a]',
-            '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
             '-c:a', 'aac', '-b:a', '128k', '-shortest', normName
           );
 
@@ -422,7 +422,7 @@
           ...inputs,
           '-filter_complex', `${filterParts}concat=n=${normNames.length}:v=1:a=1[vout][aout]`,
           '-map', '[vout]', '-map', '[aout]',
-          '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
           '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', 'out.mp4'
         );
 
