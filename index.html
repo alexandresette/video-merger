@@ -420,23 +420,25 @@
           log(`✓ ${videoFiles[i].name}`);
         }
 
-        // Passo 3b: concatena os normalizados
+        // Passo 3b: concatena via concat demuxer (mais estável que filter_complex)
         jumpTo(75, 'Juntando...');
         log('Concatenando...');
         crawl = slowCrawl(75, 93, 20000);
 
-        const filterParts = normNames.map((_, i) => `[${i}:v][${i}:a]`).join('');
+        const listContent = normNames.map(f => `file '${f}'`).join('
+');
+        ffmpeg.FS('writeFile', 'list.txt', new TextEncoder().encode(listContent));
+
         await ffmpeg.run(
-          ...normNames.flatMap(f => ['-i', f]),
-          '-filter_complex', `${filterParts}concat=n=${normNames.length}:v=1:a=1[vout][aout]`,
-          '-map', '[vout]',
-          '-map', '[aout]',
+          '-f', 'concat', '-safe', '0', '-i', 'list.txt',
           '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
           '-c:a', 'aac', '-b:a', '128k',
           '-vsync', 'cfr',
           '-movflags', '+faststart',
           'out.mp4'
         );
+
+        try { ffmpeg.FS('unlink', 'list.txt'); } catch(e) {}
 
         clearInterval(crawl);
 
