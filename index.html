@@ -4,8 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>🎬 Video Merger</title>
-  <!-- Fix para GitHub Pages: injeta os headers COOP/COEP necessários para o FFmpeg.wasm -->
-  <script src="https://unpkg.com/coi-serviceworker@0.1.7/coi-serviceworker.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -47,16 +45,10 @@
 
     #videoList { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
     .video-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: #16161f;
-      border: 1px solid #2a2a40;
-      border-radius: 12px;
-      padding: 12px 16px;
-      cursor: grab;
-      transition: all 0.15s;
-      user-select: none;
+      display: flex; align-items: center; gap: 12px;
+      background: #16161f; border: 1px solid #2a2a40;
+      border-radius: 12px; padding: 12px 16px;
+      cursor: grab; transition: all 0.15s; user-select: none;
     }
     .video-item:active { cursor: grabbing; }
     .video-item.dragging { opacity: 0.4; border-color: #a78bfa; }
@@ -98,7 +90,7 @@
 </head>
 <body>
   <h1>🎬 Video Merger</h1>
-  <p class="subtitle">Junte vídeos MP4 na ordem que quiser — tudo no navegador, sem upload</p>
+  <p class="subtitle">Junte vídeos MP4 na ordem que quiser — rápido, sem upload, sem software</p>
 
   <div class="container">
     <div id="dropzone" onclick="document.getElementById('fileInput').click()">
@@ -134,10 +126,10 @@
   </div>
 
   <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+
   <script>
     let videoFiles = [];
     let dragSrcIndex = null;
-    let ffmpegLoaded = false;
     let resultURL = null;
 
     const dropzone = document.getElementById('dropzone');
@@ -149,7 +141,9 @@
     fileInput.addEventListener('change', e => addFiles([...e.target.files]));
 
     function addFiles(files) {
-      files.forEach(f => { if (f.type.startsWith('video/') || f.name.match(/\.(mp4|mov|avi|webm|mkv)$/i)) videoFiles.push(f); });
+      files.forEach(f => {
+        if (f.type.startsWith('video/') || f.name.match(/\.(mp4|mov|avi|webm|mkv)$/i)) videoFiles.push(f);
+      });
       renderList();
     }
 
@@ -163,7 +157,7 @@
           <span class="drag-handle">☰</span>
           <span class="video-thumb">🎥</span>
           <div class="video-info">
-            <div class="video-name">${f.name}</div>
+            <div class="video-name">${escHtml(f.name)}</div>
             <div class="video-size">${formatSize(f.size)}</div>
           </div>
           <span class="order-badge">#${i + 1}</span>
@@ -172,12 +166,9 @@
       `).join('');
     }
 
-    function formatSize(bytes) {
-      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    }
-
-    function removeVideo(index) { videoFiles.splice(index, 1); renderList(); }
+    function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function formatSize(b) { return b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB'; }
+    function removeVideo(i) { videoFiles.splice(i, 1); renderList(); }
 
     function clearAll() {
       videoFiles = [];
@@ -216,72 +207,62 @@
       document.getElementById('resultSection').style.display = 'none';
 
       setProgress(0, 'Carregando FFmpeg...');
-      log('Inicializando FFmpeg...');
+      log('Inicializando...');
 
       try {
         const { createFFmpeg, fetchFile } = FFmpeg;
 
         const ffmpeg = createFFmpeg({
-          log: true,
-          logger: ({ message }) => log(message),
+          corePath: 'https://unpkg.com/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js',
+          log: false,
+          logger: ({ type, message }) => { if (type === 'fferr') log(message); },
           progress: ({ ratio }) => {
-            const pct = Math.round(ratio * 100);
-            setProgress(40 + Math.round(pct * 0.55), `Processando... ${pct}%`);
+            if (ratio > 0) setProgress(Math.min(95, Math.round(40 + ratio * 55)), `Processando... ${Math.round(ratio * 100)}%`);
           }
         });
 
-        if (!ffmpeg.isLoaded()) {
-          await ffmpeg.load();
-        }
-
-        log('FFmpeg carregado!');
+        await ffmpeg.load();
+        log('FFmpeg pronto!');
         setProgress(10, 'Carregando vídeos...');
 
-        // Escreve cada vídeo no sistema de arquivos virtual
         const filenames = [];
         for (let i = 0; i < videoFiles.length; i++) {
-          const fname = `input_${i}.mp4`;
+          const fname = `v${i}.mp4`;
           filenames.push(fname);
           ffmpeg.FS('writeFile', fname, await fetchFile(videoFiles[i]));
-          const pct = 10 + Math.round((i + 1) / videoFiles.length * 28);
-          setProgress(pct, `Carregando vídeos (${i + 1}/${videoFiles.length})...`);
-          log(`Carregado: ${videoFiles[i].name}`);
+          setProgress(10 + Math.round((i + 1) / videoFiles.length * 28), `Carregando ${i + 1}/${videoFiles.length}...`);
+          log(`✓ ${videoFiles[i].name}`);
         }
 
-        // Cria o arquivo de lista para concat
-        const concatContent = filenames.map(f => `file '${f}'`).join('\n');
-        ffmpeg.FS('writeFile', 'concat.txt', new TextEncoder().encode(concatContent));
+        const concatTxt = filenames.map(f => `file '${f}'`).join('\n');
+        ffmpeg.FS('writeFile', 'list.txt', new TextEncoder().encode(concatTxt));
 
         setProgress(40, 'Juntando vídeos...');
-        log('Iniciando concatenação...');
+        log('Concatenando...');
 
-        await ffmpeg.run('-f', 'concat', '-safe', '0', '-i', 'concat.txt', '-c', 'copy', 'output.mp4');
+        await ffmpeg.run('-f', 'concat', '-safe', '0', '-i', 'list.txt', '-c', 'copy', 'out.mp4');
 
-        setProgress(95, 'Finalizando...');
-        log('Lendo arquivo de saída...');
-
-        const data = ffmpeg.FS('readFile', 'output.mp4');
+        setProgress(97, 'Finalizando...');
+        const data = ffmpeg.FS('readFile', 'out.mp4');
         const blob = new Blob([data.buffer], { type: 'video/mp4' });
 
         if (resultURL) URL.revokeObjectURL(resultURL);
         resultURL = URL.createObjectURL(blob);
 
-        // Limpeza
-        for (const fname of filenames) { try { ffmpeg.FS('unlink', fname); } catch(e) {} }
-        try { ffmpeg.FS('unlink', 'concat.txt'); } catch(e) {}
-        try { ffmpeg.FS('unlink', 'output.mp4'); } catch(e) {}
+        // cleanup
+        [...filenames, 'list.txt', 'out.mp4'].forEach(f => { try { ffmpeg.FS('unlink', f); } catch(e) {} });
 
-        setProgress(100, 'Pronto!');
-
+        setProgress(100, 'Pronto! ✅');
         document.getElementById('downloadLink').href = resultURL;
         document.getElementById('resultInfo').textContent =
-          `${videoFiles.length} vídeos juntados • ${(blob.size / (1024 * 1024)).toFixed(1)} MB`;
+          `${videoFiles.length} vídeos juntados • ${(blob.size / 1048576).toFixed(1)} MB`;
         document.getElementById('resultSection').style.display = 'block';
+        log('Concluído!');
 
       } catch (err) {
         console.error(err);
         log('ERRO: ' + err.message);
-        alert('Erro ao processar: ' + err.message);
+        alert('Erro: ' + err.message);
       } finally {
         mergeBtn.disabled = false;
       }
