@@ -415,11 +415,9 @@
         jumpTo(60, 'Juntando vídeos...');
         log('Concatenando...');
 
-        // Concat demuxer com -c copy: funciona perfeitamente porque todos os
-        // vídeos normalizados têm o mesmo codec/fps/resolução/áudio.
-        // Mais rápido e mais estável que filter_complex.
+        // Escreve list.txt como Uint8Array (necessário no FFmpeg.wasm)
         const listTxt = normNames.map(f => `file '${f}'`).join('\n');
-        ffmpeg.FS('writeFile', 'list.txt', listTxt);
+        ffmpeg.FS('writeFile', 'list.txt', new TextEncoder().encode(listTxt));
 
         await ffmpeg.run(
           '-f', 'concat', '-safe', '0', '-i', 'list.txt',
@@ -427,6 +425,25 @@
           '-movflags', '+faststart',
           'out.mp4'
         );
+
+        // Verifica se out.mp4 foi criado
+        let fileExists = false;
+        try { ffmpeg.FS('stat', 'out.mp4'); fileExists = true; } catch(e) {}
+
+        if (!fileExists) {
+          // Fallback: filter_complex se o concat demuxer falhar
+          log('Tentando método alternativo...');
+          try { ffmpeg.FS('unlink', 'list.txt'); } catch(e) {}
+          const inputs2 = normNames.flatMap(f => ['-i', f]);
+          const filterParts = normNames.map((_,i) => `[${i}:v][${i}:a]`).join('');
+          await ffmpeg.run(
+            ...inputs2,
+            '-filter_complex', `${filterParts}concat=n=${normNames.length}:v=1:a=1[vout][aout]`,
+            '-map', '[vout]', '-map', '[aout]',
+            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+            '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', 'out.mp4'
+          );
+        }
 
         try { ffmpeg.FS('unlink', 'list.txt'); } catch(e) {}
 
