@@ -425,8 +425,7 @@
         log('Concatenando...');
         crawl = slowCrawl(75, 93, 20000);
 
-        const listContent = normNames.map(f => `file '${f}'`).join('
-');
+        const listContent = normNames.map(f => `file '${f}'`).join('\n');
         ffmpeg.FS('writeFile', 'list.txt', new TextEncoder().encode(listContent));
 
         await ffmpeg.run(
