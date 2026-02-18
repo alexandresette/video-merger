@@ -382,8 +382,7 @@
         }
 
         // ── Etapa 3: Normalizar (20→58%) ─────────────────────────────────────
-        // Abordagem robusta: 3 passos separados por vídeo
-        // 1) encode vídeo sem áudio  2) extrai/gera áudio  3) mux
+        // Versão simples: todos os vídeos têm áudio — 1 chamada por vídeo
         const normNames = [];
         const perNorm = 38 / rawNames.length;
 
@@ -394,52 +393,16 @@
           renderProgress(`Normalizando ${i+1}/${rawNames.length}...`);
           log(`Normalizando ${i+1}/${rawNames.length}...`);
 
-          const vOnly    = `nv${i}.mp4`;
-          const aOnly    = `na${i}.aac`;
           const normName = `norm${i}.mp4`;
           normNames.push(normName);
 
-          // Passo 1: normaliza vídeo (sem áudio)
           await ffmpeg.run(
             '-i', rawNames[i],
             '-vf', 'fps=30,setsar=1',
             '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-            '-an', vOnly
-          );
-
-          // Passo 2: tenta extrair áudio; se não tiver, gera silêncio
-          let audioOk = false;
-          try {
-            await ffmpeg.run(
-              '-i', rawNames[i],
-              '-vn', '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-ac', '2',
-              aOnly
-            );
-            const info = ffmpeg.FS('stat', aOnly);
-            audioOk = info && info.size > 100;
-          } catch(e) { audioOk = false; }
-
-          if (!audioOk) {
-            try { ffmpeg.FS('unlink', aOnly); } catch(e) {}
-            await ffmpeg.run(
-              '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
-              '-t', '7200',
-              '-c:a', 'aac', '-b:a', '128k',
-              aOnly
-            );
-            log(`  sem audio — usando silencio`);
-          }
-
-          // Passo 3: mux vídeo + áudio, corta no final do vídeo
-          await ffmpeg.run(
-            '-i', vOnly, '-i', aOnly,
-            '-map', '0:v', '-map', '1:a',
-            '-c', 'copy', '-shortest',
+            '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-ac', '2',
             normName
           );
-
-          try { ffmpeg.FS('unlink', vOnly); } catch(e) {}
-          try { ffmpeg.FS('unlink', aOnly); } catch(e) {}
 
           clearInterval(crawl);
           jumpTo(to, `Normalizado ${i+1}/${rawNames.length}`);
