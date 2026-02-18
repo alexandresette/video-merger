@@ -213,7 +213,6 @@
         const { createFFmpeg, fetchFile } = FFmpeg;
 
         const ffmpeg = createFFmpeg({
-          // Core multi-threaded padrão — funciona com os headers COOP/COEP da Vercel
           corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
           log: false,
           logger: ({ type, message }) => { if (type === 'fferr') log(message); },
@@ -231,17 +230,34 @@
           const fname = `v${i}.mp4`;
           filenames.push(fname);
           ffmpeg.FS('writeFile', fname, await fetchFile(videoFiles[i]));
-          setProgress(10 + Math.round((i + 1) / videoFiles.length * 28), `Carregando ${i + 1}/${videoFiles.length}...`);
+          setProgress(10 + Math.round((i + 1) / videoFiles.length * 25), `Carregando ${i + 1}/${videoFiles.length}...`);
           log(`✓ ${videoFiles[i].name}`);
         }
 
-        const concatTxt = filenames.map(f => `file '${f}'`).join('\n');
-        ffmpeg.FS('writeFile', 'list.txt', new TextEncoder().encode(concatTxt));
+        // Monta o filter_complex para concat com re-encode correto
+        // Isso garante sincronização perfeita independente dos timestamps originais
+        const n = filenames.length;
+        const inputs = filenames.flatMap(f => ['-i', f]);
 
-        setProgress(40, 'Juntando vídeos...');
-        log('Concatenando...');
+        const filterInputs = filenames.map((_, i) => `[${i}:v][${i}:a]`).join('');
+        const filterComplex = `${filterInputs}concat=n=${n}:v=1:a=1[vout][aout]`;
 
-        await ffmpeg.run('-f', 'concat', '-safe', '0', '-i', 'list.txt', '-c', 'copy', 'out.mp4');
+        setProgress(38, 'Juntando e re-encodando...');
+        log(`Concatenando ${n} vídeos com re-encode...`);
+
+        await ffmpeg.run(
+          ...inputs,
+          '-filter_complex', filterComplex,
+          '-map', '[vout]',
+          '-map', '[aout]',
+          '-c:v', 'libx264',
+          '-preset', 'veryfast',
+          '-crf', '23',
+          '-c:a', 'aac',
+          '-b:a', '128k',
+          '-movflags', '+faststart',
+          'out.mp4'
+        );
 
         setProgress(97, 'Finalizando...');
         const data = ffmpeg.FS('readFile', 'out.mp4');
@@ -250,7 +266,7 @@
         if (resultURL) URL.revokeObjectURL(resultURL);
         resultURL = URL.createObjectURL(blob);
 
-        [...filenames, 'list.txt', 'out.mp4'].forEach(f => { try { ffmpeg.FS('unlink', f); } catch(e) {} });
+        [...filenames, 'out.mp4'].forEach(f => { try { ffmpeg.FS('unlink', f); } catch(e) {} });
 
         setProgress(100, 'Pronto! ✅');
         document.getElementById('downloadLink').href = resultURL;
