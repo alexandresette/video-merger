@@ -36,11 +36,65 @@
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     .btn-secondary { background: #1e1e2e; color: #888; border: 1px solid #2a2a40; }
     .btn-secondary:hover { background: #252535; color: #ccc; }
+
+    /* Progress */
     #progressSection { display: none; background: #16161f; border: 1px solid #2a2a40; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
-    .progress-label { font-size: 0.85rem; color: #888; margin-bottom: 10px; display: flex; justify-content: space-between; }
-    .progress-bar { height: 6px; background: #2a2a40; border-radius: 10px; overflow: hidden; }
-    .progress-fill { height: 100%; background: linear-gradient(90deg, #7c3aed, #3b82f6); border-radius: 10px; transition: width 0.3s; width: 0%; }
-    .log-output { margin-top: 14px; font-size: 0.78rem; color: #555; font-family: monospace; max-height: 80px; overflow-y: auto; }
+    .progress-label { font-size: 0.85rem; color: #888; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .progress-label span:first-child { flex: 1; }
+    .progress-pct { font-variant-numeric: tabular-nums; font-weight: 600; color: #a78bfa; min-width: 38px; text-align: right; }
+    .progress-bar { height: 8px; background: #2a2a40; border-radius: 10px; overflow: hidden; position: relative; }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #7c3aed, #3b82f6);
+      border-radius: 10px;
+      /* transição suave — CSS faz a animação, JS só define o target */
+      transition: width 0.8s ease-out;
+      width: 0%;
+      position: relative;
+    }
+    /* Shimmer animado por cima da barra */
+    .progress-fill::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -60%;
+      width: 60%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+      animation: shimmer 1.4s infinite;
+    }
+    @keyframes shimmer { to { left: 160%; } }
+
+    /* Etapas visuais */
+    .steps { display: flex; gap: 0; margin-top: 14px; }
+    .step { flex: 1; text-align: center; font-size: 0.7rem; color: #444; padding-top: 8px; position: relative; transition: color 0.3s; }
+    .step::before {
+      content: '';
+      display: block;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #2a2a40;
+      border: 2px solid #3a3a5c;
+      margin: 0 auto 6px;
+      transition: all 0.4s;
+    }
+    .step.active::before { background: #7c3aed; border-color: #a78bfa; box-shadow: 0 0 8px #a78bfa88; }
+    .step.done::before { background: #22c55e; border-color: #4ade80; }
+    .step.active { color: #c4b5fd; }
+    .step.done { color: #4ade80; }
+
+    /* Connector lines between steps */
+    .step + .step::after {
+      content: '';
+      position: absolute;
+      top: 12px; right: 50%;
+      width: calc(100% - 10px);
+      height: 2px;
+      background: #2a2a40;
+      z-index: 0;
+      left: calc(-50% + 5px);
+    }
+
+    .log-output { margin-top: 14px; font-size: 0.75rem; color: #555; font-family: monospace; max-height: 60px; overflow-y: auto; line-height: 1.6; }
+
     #resultSection { display: none; background: #0f1f1a; border: 1px solid #134e4a; border-radius: 12px; padding: 20px; text-align: center; }
     #resultSection h3 { color: #34d399; margin-bottom: 6px; }
     #resultSection p { color: #6b8c85; font-size: 0.85rem; margin-bottom: 16px; }
@@ -56,13 +110,10 @@
 <body>
 
 <script>
-// COI Service Worker — injeta COOP/COEP headers no browser sem precisar do servidor
 (function() {
-  if (window.crossOriginIsolated) return; // já isolado, nada a fazer
+  if (window.crossOriginIsolated) return;
   if (!('serviceWorker' in navigator)) return;
-
   const SW = `
-    const VERSION = 'coi-v1';
     self.addEventListener('install', () => self.skipWaiting());
     self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
     self.addEventListener('fetch', event => {
@@ -79,26 +130,17 @@
       );
     });
   `;
-
   const blob = new Blob([SW], {type:'text/javascript'});
   const url = URL.createObjectURL(blob);
-
   navigator.serviceWorker.register(url, {scope: './'}).then(reg => {
     const worker = reg.installing || reg.waiting || reg.active;
     if (reg.active && !reg.installing && !reg.waiting) {
-      // SW já ativo — recarrega se ainda não isolado
-      if (!sessionStorage.getItem('coi-reload')) {
-        sessionStorage.setItem('coi-reload','1');
-        window.location.reload();
-      }
+      if (!sessionStorage.getItem('coi-reload')) { sessionStorage.setItem('coi-reload','1'); window.location.reload(); }
       return;
     }
     worker.addEventListener('statechange', function() {
       if (this.state === 'activated') {
-        if (!sessionStorage.getItem('coi-reload')) {
-          sessionStorage.setItem('coi-reload','1');
-          window.location.reload();
-        }
+        if (!sessionStorage.getItem('coi-reload')) { sessionStorage.setItem('coi-reload','1'); window.location.reload(); }
       }
     });
   }).catch(e => console.warn('[COI-SW]', e));
@@ -107,7 +149,6 @@
 
   <h1>🎬 Video Merger</h1>
   <p class="subtitle">Junte vídeos MP4 na ordem que quiser — rápido, sem upload, sem software</p>
-
   <div id="statusBadge"></div>
 
   <div class="container">
@@ -122,14 +163,27 @@
       <button class="btn btn-secondary" onclick="clearAll()">🗑 Limpar</button>
       <button class="btn btn-primary" id="mergeBtn" onclick="startMerge()">✨ Juntar Vídeos</button>
     </div>
+
     <div id="progressSection">
       <div class="progress-label">
         <span id="progressStatus">Processando...</span>
-        <span id="progressPercent">0%</span>
+        <span class="progress-pct" id="progressPercent">0%</span>
       </div>
-      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+
+      <!-- Etapas visuais -->
+      <div class="steps">
+        <div class="step" id="step-load">Carregando</div>
+        <div class="step" id="step-norm">Normalizando</div>
+        <div class="step" id="step-concat">Juntando</div>
+        <div class="step" id="step-done">Pronto</div>
+      </div>
+
       <div class="log-output" id="logOutput"></div>
     </div>
+
     <div id="resultSection">
       <h3>✅ Pronto!</h3>
       <p id="resultInfo">Vídeo gerado com sucesso.</p>
@@ -140,10 +194,9 @@
 
   <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
   <script>
-    // Status badge
     const badge = document.getElementById('statusBadge');
     if (window.crossOriginIsolated) {
-      badge.innerHTML = '<span class="badge badge-ok">🔒 Modo seguro ativo — pronto para processar</span>';
+      badge.innerHTML = '<span class="badge badge-ok">🔒 Modo seguro ativo</span>';
     } else {
       badge.innerHTML = '<span class="badge badge-warn">⏳ Ativando modo seguro... recarregue se travar</span>';
     }
@@ -151,7 +204,6 @@
     let videoFiles = [], dragSrcIndex = null, resultURL = null;
     const dropzone = document.getElementById('dropzone');
     const fileInput = document.getElementById('fileInput');
-
     dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
     dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
     dropzone.addEventListener('drop', e => { e.preventDefault(); dropzone.classList.remove('drag-over'); addFiles([...e.dataTransfer.files]); });
@@ -189,6 +241,87 @@
     function dragDrop(e,i) { e.preventDefault(); if(dragSrcIndex===null||dragSrcIndex===i) return; const m=videoFiles.splice(dragSrcIndex,1)[0]; videoFiles.splice(i,0,m); renderList(); }
     function dragEnd() { dragSrcIndex=null; document.querySelectorAll('.video-item').forEach(el=>el.classList.remove('dragging','drag-target')); }
 
+    // ─── Progress suave ──────────────────────────────────────────────────────
+    let _currentPct = 0;     // valor atual exibido
+    let _targetPct  = 0;     // valor para onde estamos indo
+    let _ceilPct    = 100;   // teto: não avança além desse valor até o próximo marco
+    let _driftTimer = null;  // timer de drift lento
+
+    // Define um novo alvo (pode ser chamado pelo FFmpeg ou pelos marcos do código)
+    function setTarget(pct, ceil) {
+      _targetPct = Math.min(pct, ceil !== undefined ? ceil : _ceilPct);
+      if (ceil !== undefined) _ceilPct = ceil;
+    }
+
+    // Inicia o loop de animação
+    function startDrift() {
+      if (_driftTimer) return;
+      _driftTimer = setInterval(() => {
+        if (_currentPct >= _targetPct) return;
+        // avança no máximo 0.4% por tick (suave), desacelera perto do teto
+        const gap = _targetPct - _currentPct;
+        const step = Math.max(0.05, Math.min(0.4, gap * 0.04));
+        _currentPct = Math.min(_currentPct + step, _targetPct);
+        renderProgress();
+      }, 80);
+    }
+
+    function stopDrift() {
+      if (_driftTimer) { clearInterval(_driftTimer); _driftTimer = null; }
+    }
+
+    // "Empurra" o alvo lentamente durante uma etapa que não reporta progresso
+    // Avança até `until` ao longo de `durationMs` ms
+    function slowCrawl(from, until, durationMs) {
+      _currentPct = Math.max(_currentPct, from);
+      _targetPct  = from;
+      _ceilPct    = until;
+      const steps = durationMs / 80;
+      const increment = (until - from) / steps;
+      let tick = 0;
+      const crawlTimer = setInterval(() => {
+        tick++;
+        _targetPct = Math.min(from + increment * tick, until - 0.5); // para um pouco antes do teto
+        if (tick >= steps) clearInterval(crawlTimer);
+      }, 80);
+      return crawlTimer;
+    }
+
+    function jumpTo(pct, status, stepId) {
+      _currentPct = pct;
+      _targetPct  = pct;
+      renderProgress(status, stepId);
+    }
+
+    function renderProgress(status, stepId) {
+      const pct = Math.round(_currentPct);
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressPercent').textContent = pct + '%';
+      if (status) document.getElementById('progressStatus').textContent = status;
+    }
+
+    function setStep(id) {
+      document.querySelectorAll('.step').forEach(el => { el.classList.remove('active'); });
+      const el = document.getElementById('step-'+id);
+      if (el) el.classList.add('active');
+    }
+
+    function doneStep(id) {
+      const el = document.getElementById('id-'+id) || document.getElementById('step-'+id);
+      if (el) { el.classList.remove('active'); el.classList.add('done'); }
+    }
+
+    function resetSteps() {
+      document.querySelectorAll('.step').forEach(el => el.classList.remove('active','done'));
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function log(msg) {
+      const out = document.getElementById('logOutput');
+      out.textContent += msg + '\n';
+      out.scrollTop = out.scrollHeight;
+    }
+
     async function startMerge() {
       if (videoFiles.length < 2) { alert('Adicione pelo menos 2 vídeos.'); return; }
       if (!window.crossOriginIsolated) {
@@ -200,92 +333,129 @@
       mergeBtn.disabled = true;
       document.getElementById('progressSection').style.display = 'block';
       document.getElementById('resultSection').style.display = 'none';
-      setProgress(0, 'Carregando FFmpeg...');
-      log('Inicializando...');
+
+      // Reset
+      _currentPct = 0; _targetPct = 0; _ceilPct = 100;
+      resetSteps();
+      document.getElementById('logOutput').textContent = '';
+      renderProgress('Carregando FFmpeg...');
+      startDrift();
 
       try {
         const { createFFmpeg, fetchFile } = FFmpeg;
+
+        // ── Etapa 1: Carregar FFmpeg (0→8%) ──────────────────────────────────
+        setStep('load');
+        let crawl = slowCrawl(0, 8, 8000); // estima 8s para carregar
+
         const ffmpeg = createFFmpeg({
           corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
           log: false,
-          logger: ({type,message}) => { if(type==='fferr') log(message); },
-          progress: ({ratio}) => { if(ratio>0) setProgress(Math.min(95,Math.round(35+ratio*60)),`Processando... ${Math.round(ratio*100)}%`); }
+          logger: ({type, message}) => { if (type === 'fferr') log(message); },
+          progress: ({ratio}) => {
+            // Só chega aqui durante o concat final (etapa 3, 60→94%)
+            if (ratio > 0) {
+              _targetPct = Math.min(94, 60 + ratio * 34);
+              _ceilPct = 94;
+            }
+          }
         });
 
         await ffmpeg.load();
+        clearInterval(crawl);
         log('FFmpeg pronto!');
-        setProgress(8,'Carregando vídeos...');
+        doneStep('load');
 
+        // ── Etapa 2: Carregar arquivos (8→20%) ───────────────────────────────
+        setStep('norm');
+        jumpTo(8, 'Carregando vídeos...');
         const rawNames = [];
-        for (let i=0;i<videoFiles.length;i++) {
-          const fname=`raw${i}.mp4`;
+        const perFile = 12 / videoFiles.length;
+        for (let i = 0; i < videoFiles.length; i++) {
+          crawl = slowCrawl(8 + i * perFile, 8 + (i + 1) * perFile, 2000);
+          const fname = `raw${i}.mp4`;
           rawNames.push(fname);
           ffmpeg.FS('writeFile', fname, await fetchFile(videoFiles[i]));
-          setProgress(8+Math.round((i+1)/videoFiles.length*20),`Carregando ${i+1}/${videoFiles.length}...`);
+          clearInterval(crawl);
+          jumpTo(8 + (i + 1) * perFile, `Carregando ${i+1}/${videoFiles.length}...`);
           log(`✓ ${videoFiles[i].name}`);
         }
 
-        setProgress(30,'Normalizando vídeos...');
+        // ── Etapa 3: Normalizar (20→58%) ─────────────────────────────────────
         const normNames = [];
-        for (let i=0;i<rawNames.length;i++) {
-          const normName=`norm${i}.mp4`;
-          normNames.push(normName);
+        const perNorm = 38 / rawNames.length;
+        for (let i = 0; i < rawNames.length; i++) {
+          const from = 20 + i * perNorm;
+          const to   = 20 + (i + 1) * perNorm;
+          crawl = slowCrawl(from, to, 25000); // normalização pode levar ~25s por vídeo
+          renderProgress(`Normalizando ${i+1}/${rawNames.length}...`);
           log(`Normalizando ${i+1}/${rawNames.length}...`);
+
+          const normName = `norm${i}.mp4`;
+          normNames.push(normName);
+
           await ffmpeg.run(
             '-i', rawNames[i],
-            '-f','lavfi','-t','0.001','-i','anullsrc=channel_layout=stereo:sample_rate=44100',
+            '-f', 'lavfi', '-t', '0.001', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
             '-filter_complex',
               `[0:v]setsar=1,fps=30[v];[0:a]aresample=44100[hasa];[1:a][hasa]amix=inputs=2:duration=first[a]`,
-            '-map','[v]','-map','[a]',
-            '-c:v','libx264','-preset','veryfast','-crf','23',
-            '-c:a','aac','-b:a','128k','-shortest',normName
+            '-map', '[v]', '-map', '[a]',
+            '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+            '-c:a', 'aac', '-b:a', '128k', '-shortest', normName
           );
-          setProgress(30+Math.round((i+1)/rawNames.length*5),`Normalizado ${i+1}/${rawNames.length}`);
+
+          clearInterval(crawl);
+          jumpTo(to, `Normalizado ${i+1}/${rawNames.length}`);
           log(`✓ ${videoFiles[i].name}`);
         }
+        doneStep('norm');
 
-        setProgress(36,'Juntando vídeos...');
+        // ── Etapa 4: Concatenar (60→94%) ─────────────────────────────────────
+        setStep('concat');
+        jumpTo(60, 'Juntando vídeos...');
         log('Concatenando...');
-        const inputs = normNames.flatMap(f=>['-i',f]);
-        const filterParts = normNames.map((_,i)=>`[${i}:v][${i}:a]`).join('');
+        // O progress callback do FFmpeg vai cuidar do avanço aqui
+
+        const inputs = normNames.flatMap(f => ['-i', f]);
+        const filterParts = normNames.map((_,i) => `[${i}:v][${i}:a]`).join('');
         await ffmpeg.run(
           ...inputs,
           '-filter_complex', `${filterParts}concat=n=${normNames.length}:v=1:a=1[vout][aout]`,
-          '-map','[vout]','-map','[aout]',
-          '-c:v','libx264','-preset','veryfast','-crf','23',
-          '-c:a','aac','-b:a','128k','-movflags','+faststart','out.mp4'
+          '-map', '[vout]', '-map', '[aout]',
+          '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+          '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', 'out.mp4'
         );
 
-        setProgress(97,'Finalizando...');
-        const data = ffmpeg.FS('readFile','out.mp4');
-        const blob = new Blob([data.buffer],{type:'video/mp4'});
+        // ── Etapa 5: Finalizar (94→100%) ─────────────────────────────────────
+        doneStep('concat');
+        setStep('done');
+        crawl = slowCrawl(94, 100, 1500);
+        renderProgress('Finalizando...');
+
+        const data = ffmpeg.FS('readFile', 'out.mp4');
+        const blob = new Blob([data.buffer], {type: 'video/mp4'});
         if (resultURL) URL.revokeObjectURL(resultURL);
         resultURL = URL.createObjectURL(blob);
-        [...rawNames,...normNames,'out.mp4'].forEach(f=>{try{ffmpeg.FS('unlink',f);}catch(e){}});
+        [...rawNames, ...normNames, 'out.mp4'].forEach(f => { try { ffmpeg.FS('unlink', f); } catch(e) {} });
 
-        setProgress(100,'Pronto! ✅');
+        clearInterval(crawl);
+        stopDrift();
+        jumpTo(100, 'Pronto! ✅');
+        doneStep('done');
+
         document.getElementById('downloadLink').href = resultURL;
         document.getElementById('resultInfo').textContent = `${videoFiles.length} vídeos juntados • ${(blob.size/1048576).toFixed(1)} MB`;
         document.getElementById('resultSection').style.display = 'block';
         log('Concluído!');
+
       } catch(err) {
+        stopDrift();
         console.error(err);
-        log('ERRO: '+err.message);
-        alert('Erro: '+err.message);
+        log('ERRO: ' + err.message);
+        alert('Erro: ' + err.message);
       } finally {
         mergeBtn.disabled = false;
       }
-    }
-
-    function setProgress(pct,status) {
-      document.getElementById('progressFill').style.width=pct+'%';
-      document.getElementById('progressPercent').textContent=pct+'%';
-      document.getElementById('progressStatus').textContent=status;
-    }
-    function log(msg) {
-      const out=document.getElementById('logOutput');
-      out.textContent+=msg+'\n';
-      out.scrollTop=out.scrollHeight;
     }
   </script>
 </body>
